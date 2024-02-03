@@ -7,19 +7,11 @@ import java.util.ArrayList;
 import java.awt.Graphics;
 import java.sql.*;
 
-
-//régler pour tour, fou, et reine qu'elle peut pas manger si un pion est sur sa trajectoire !
-// pawn peut pas manger tout droit !
-// affichage du score
-// cas d'échec
-
-
 public class FenetrePrincipale extends JFrame{
     private JPanel myContentPane;
     private Plateau ChessBoard ;
     private ArrayList<Piece> listePion = new ArrayList<Piece>();
     private Piece selectedPiece;
-    private Point selectedPoint;
     private JButton bouton_score;
     private String joueur="white";
     private int Score = 0;
@@ -69,7 +61,6 @@ public class FenetrePrincipale extends JFrame{
         listePion.add(new Pion(new Point(taille*5, 7*taille), "white-bishop.png","white","bishop"));
         listePion.add(new Pion(new Point(taille*3, 7*taille), "white-queen.png","white","queen"));
         listePion.add(new Pion(new Point(taille*4, 7*taille), "white-king.png","white","king"));
-
         for (int i=0;i<8;i++){
             listePion.add(new Pion(new Point(i*taille, taille), "black-pawn.png","black","pawn"));
             listePion.add(new Pion(new Point(i*taille, 6*taille), "white-pawn.png","white","pawn"));
@@ -112,30 +103,40 @@ public class FenetrePrincipale extends JFrame{
             for (Piece p : listePion)
                 p.dessiner(g);
 
+        //affichage du score
+        g.setColor(Color.red);
+        Font f = new Font("Arial", Font.BOLD, 30);
+        g.setFont(f);
+        g.drawString("" + Score,650,170);
+
+
+        //affichage de la case cliquée
         if (selectedPiece!=null){
             g.setColor(Color.black);
             g.drawRect(selectedPiece.getCoinSuperieurGauche().x,selectedPiece.getCoinSuperieurGauche().y, ChessBoard.getTaille(), ChessBoard.getTaille());
 
             switch (selectedPiece.getType()){
-                case "pawn": //a faire
-                    bouger=pawn_deplacement(selectedPiece,selectedPoint);
+                case "pawn":
+                    bouger=pawn_deplacement(selectedPiece);
                     break;
                 case "rook" :
-                    bouger=rook_deplacement(selectedPiece,selectedPoint);
+                    bouger=rook_deplacement(selectedPiece);
                     break;
                 case "bishop":
-                    bouger = bishop_deplacement(selectedPiece,selectedPoint);
+                    bouger = bishop_deplacement(selectedPiece);
                     break;
                 case "queen":
-                    bouger=queen_deplacement(selectedPiece,selectedPoint);
+                    bouger=queen_deplacement(selectedPiece);
                     break;
                 case "king":
-                    bouger= king_deplacement(selectedPiece,selectedPoint);
+                    bouger= king_deplacement(selectedPiece);
                     break;
                 case "knight":
-                    bouger=knight_deplacement(selectedPiece,selectedPoint);
+                    bouger=knight_deplacement(selectedPiece);
                     break;
             }
+
+            //affichage des déplacements possibles
             for (Point point_liste: bouger){
                 g.setColor(Color.green);
                 g.drawOval(point_liste.x+15,point_liste.y+15, 40, 40);
@@ -164,8 +165,7 @@ public class FenetrePrincipale extends JFrame{
                 }
                 else{
                     if (selectedPiece != null){
-                        selectedPoint=new Point(sourisX * taille, sourisY * taille);
-                        deplacerPiece(selectedPiece, selectedPoint);
+                        deplacerPiece(selectedPiece,new Point(sourisX * taille, sourisY * taille));
                         selectedPiece = null;
                         break;
                     }
@@ -183,23 +183,23 @@ public class FenetrePrincipale extends JFrame{
         ArrayList<Point> bouger = new ArrayList<Point>();
 
         switch (p.getType()){
-            case "pawn": //a faire
-                bouger=pawn_deplacement(p,t);
+            case "pawn":
+                bouger=pawn_deplacement(p);
                 break;
             case "rook" :
-                bouger=rook_deplacement(p,t);
+                bouger=rook_deplacement(p);
                 break;
             case "bishop":
-                bouger = bishop_deplacement(p,t);
+                bouger = bishop_deplacement(p);
                 break;
             case "queen":
-                bouger=queen_deplacement(p,t);
+                bouger=queen_deplacement(p);
                 break;
             case "king":
-                bouger= king_deplacement(p,t);
+                bouger= king_deplacement(p);
                 break;
             case "knight":
-                bouger=knight_deplacement(p,t); // OK tout bon !
+                bouger=knight_deplacement(p);
                 break;
         }
 
@@ -244,136 +244,476 @@ public class FenetrePrincipale extends JFrame{
 
 
     //renvoie la liste des cases où le pion peut aller
-    public ArrayList<Point> rook_deplacement(Piece p, Point t) {
+    public ArrayList<Point> rook_deplacement(Piece p) {
         int taille = ChessBoard.getTaille();
-        ArrayList<Point> case_possible = new ArrayList<Point>();
-        int x_min=7;
-        int x=7;
-        int y_min=7;
-        int y=7;
+        ArrayList<Point> case_possible = new ArrayList<Point>(); // déplacements autorisées
+        int pion_case = 0; //1 si un pion sur la case, 0 si libre
+        int pion_trouve = 0; //0 si pas de pion sur horizontale droite, 1 sinon
+        int x = 1;
 
-        // cas horizontal
-        for (int i=p.getCoinSuperieurGauche().x/taille;i>=0;i--){
+        //deplacement à droite
+        while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().x + x * taille <= 7 * taille)) {
+            pion_case = 0;
             for (Piece piece : listePion) {
-                if (piece.getCoinSuperieurGauche().x != p.getCoinSuperieurGauche().x) {
-                    if ((piece.getCoinSuperieurGauche().x == i * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y)) {
-                        case_possible.add(new Point(p.getCoinSuperieurGauche().x - i * taille, p.getCoinSuperieurGauche().y));
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x + x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
                     }
                 }
             }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
         }
-        for (int i=p.getCoinSuperieurGauche().x/taille;i<=7;i++){
-            for (Piece piece : listePion) {
-                if (piece.getCoinSuperieurGauche().x != p.getCoinSuperieurGauche().x) {
-                    if ((piece.getCoinSuperieurGauche().x == i * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y)) {
-                        case_possible.add(new Point(p.getCoinSuperieurGauche().x + i * taille, p.getCoinSuperieurGauche().y));
+
+        //deplacement à gauche
+        pion_trouve = 0; //0 si pas de pion sur horizontale gauche, 1 sinon
+        x = 1;
+        if (p.getCoinSuperieurGauche().x != 0){
+            while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().x - x * taille >= 0)) {
+                pion_case = 0;
+                for (Piece piece : listePion) {
+                    if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x - x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y)) {
+                        if (piece.getCouleur() != joueur) {
+                            pion_case = 2; // couleur adverse, peut manger
+                        } else {
+                            pion_case = 1;
+                        }
                     }
                 }
+                if (pion_case == 0) {
+                    case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y));
+                } else if (pion_case == 2) {
+                    case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y));
+                    pion_trouve = 1;
+                } else pion_trouve = 1;
+                x = x + 1;
             }
         }
 
-        // cas vertical
-        for (int i=p.getCoinSuperieurGauche().y/taille;i>=0;i--){
+        //deplacement vers le haut
+        pion_trouve = 0; //0 si pas de pion vers le haut, 1 sinon
+        x = 1;
+        while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().y - x * taille >=0)) {
+            pion_case = 0;
             for (Piece piece : listePion) {
-                if (piece.getCoinSuperieurGauche().y != p.getCoinSuperieurGauche().y) {
-                    if ((piece.getCoinSuperieurGauche().y == i * taille) && (piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x)) {
-                        case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y- i * taille));
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y-x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
                     }
                 }
             }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y -x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y -x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
         }
-        for (int i=p.getCoinSuperieurGauche().y/taille;i<=7;i++){
+
+        //deplacement vers le bas
+        pion_trouve = 0; //0 si pas de pion vers le haut, 1 sinon
+        x = 1;
+        while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().y + x * taille <=7*taille)) {
+            pion_case = 0;
             for (Piece piece : listePion) {
-                if (piece.getCoinSuperieurGauche().y != p.getCoinSuperieurGauche().y) {
-                    if ((piece.getCoinSuperieurGauche().y == i * taille) && (piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x)) {
-                        case_possible.add(new Point(p.getCoinSuperieurGauche().x , p.getCoinSuperieurGauche().y+ i * taille));
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y+x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
                     }
                 }
             }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y +x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y +x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
         }
 
         return case_possible;
     }
 
-    public ArrayList<Point> bishop_deplacement(Piece p, Point t){
+    public ArrayList<Point> bishop_deplacement(Piece p){
         int taille= ChessBoard.getTaille();
         ArrayList<Point> case_possible = new ArrayList<Point>();
+        int pion_case=0;
+        int pion_trouve = 0; //0 si pas de pion, 1 sinon
+        int x = 1;
 
-        int maxi=Math.max(p.getCoinSuperieurGauche().x,p.getCoinSuperieurGauche().y);
+        //diagonale en haut à droite
+        while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().x+x*taille<=7*taille)) {
+            pion_case = 0;
+            for (Piece piece : listePion) {
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x + x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y -x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
+                    }
+                }
+            }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y-x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y -x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
+        }
+
+        pion_trouve = 0; //0 si pas de pion, 1 sinon
+        x = 1;
+        //diagonale en bas à gauche
+        while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().y+x*taille<=7*taille)) {
+            pion_case = 0;
+            for (Piece piece : listePion) {
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x - x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y +x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
+                    }
+                }
+            }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y+x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y +x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
+        }
+
+        pion_trouve = 0; //0 si pas de pion, 1 sinon
+        x = 1;
+        //diagonale en bas à droite
+        int maxi=Math.max(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y);
+        while ((pion_trouve == 0) && (maxi+x*taille<=7*taille)) {
+            pion_case = 0;
+            for (Piece piece : listePion) {
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x + x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y +x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
+                    }
+                }
+            }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y+x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y +x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
+        }
+
+        pion_trouve = 0; //0 si pas de pion, 1 sinon
+        x = 1;
+        //diagonale en haut à gauche
         int mini=Math.min(p.getCoinSuperieurGauche().x,p.getCoinSuperieurGauche().y);
-        for (int i=1; i<=mini/taille;i++) { // diagonale en haut à gauche => ok
-            case_possible.add(new Point(p.getCoinSuperieurGauche().x - i * taille, p.getCoinSuperieurGauche().y - i * taille));
+        while ((pion_trouve == 0) && (mini-x*taille>=0)) {
+            pion_case = 0;
+            for (Piece piece : listePion) {
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x - x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y -x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
+                    }
+                }
+            }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y-x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y -x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
         }
-        for (int i=1; i<=7-maxi/taille;i++) { //diagonale en bas à droite => ok
-            case_possible.add(new Point(p.getCoinSuperieurGauche().x + i * taille, p.getCoinSuperieurGauche().y + i * taille));
-        }
-        for (int j=1; j<=7-p.getCoinSuperieurGauche().y/taille;j++) { //diagonale en bas à gauche => ok
-            case_possible.add(new Point(p.getCoinSuperieurGauche().x - j * taille, p.getCoinSuperieurGauche().y + j * taille));
-        }
-        for (int j=1; j<=7-p.getCoinSuperieurGauche().x/taille;j++) { //diagonale en haut à droite => ok
-            case_possible.add(new Point(p.getCoinSuperieurGauche().x + j * taille, p.getCoinSuperieurGauche().y - j * taille));
-        }
+
         return case_possible;
     }
 
-    public ArrayList<Point> queen_deplacement(Piece p, Point t){
+    public ArrayList<Point> queen_deplacement(Piece p){
         int taille= ChessBoard.getTaille();
         ArrayList<Point> case_possible = new ArrayList<Point>();
+        int pion_case = 0; //1 si un pion sur la case, 0 si libre
+        int pion_trouve = 0; //0 si pas de pion, 1 sinon
+        int x = 1;
 
-        int maxi=Math.max(p.getCoinSuperieurGauche().x,p.getCoinSuperieurGauche().y);
+        //diagonale en haut à droite
+        while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().x+x*taille<=7*taille)) {
+            pion_case = 0;
+            for (Piece piece : listePion) {
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x + x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y -x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
+                    }
+                }
+            }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y-x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y -x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
+        }
+
+        pion_trouve = 0; //0 si pas de pion, 1 sinon
+        x = 1;
+        //diagonale en bas à gauche
+        while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().y+x*taille<=7*taille)) {
+            pion_case = 0;
+            for (Piece piece : listePion) {
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x - x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y +x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
+                    }
+                }
+            }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y+x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y +x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
+        }
+
+        pion_trouve = 0; //0 si pas de pion, 1 sinon
+        x = 1;
+        //diagonale en bas à droite
+        int maxi=Math.max(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y);
+        while ((pion_trouve == 0) && (maxi+x*taille<=7*taille)) {
+            pion_case = 0;
+            for (Piece piece : listePion) {
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x + x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y +x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
+                    }
+                }
+            }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y+x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y +x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
+        }
+
+        pion_trouve = 0; //0 si pas de pion, 1 sinon
+        x = 1;
+        //diagonale en haut à gauche
         int mini=Math.min(p.getCoinSuperieurGauche().x,p.getCoinSuperieurGauche().y);
-        for (int i=1; i<=mini/taille;i++) { // diagonale en haut à gauche => ok
-            case_possible.add(new Point(p.getCoinSuperieurGauche().x - i * taille, p.getCoinSuperieurGauche().y - i * taille));
-        }
-        for (int i=1; i<=7-maxi/taille;i++) { //diagonale en bas à droite => ok
-            case_possible.add(new Point(p.getCoinSuperieurGauche().x + i * taille, p.getCoinSuperieurGauche().y + i * taille));
-        }
-
-        for (int j=1; j<=7-p.getCoinSuperieurGauche().y/taille;j++) { //diagonale en bas à gauche => ok
-            case_possible.add(new Point(p.getCoinSuperieurGauche().x - j * taille, p.getCoinSuperieurGauche().y + j * taille));
-        }
-        for (int j=1; j<=7-p.getCoinSuperieurGauche().x/taille;j++) { //diagonale en haut à droite => ok
-            case_possible.add(new Point(p.getCoinSuperieurGauche().x + j * taille, p.getCoinSuperieurGauche().y - j * taille));
+        while ((pion_trouve == 0) && (mini-x*taille>=0)) {
+            pion_case = 0;
+            for (Piece piece : listePion) {
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x - x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y -x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
+                    }
+                }
+            }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y-x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y -x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
         }
 
         // verticale + horizontale
-        for (int i=0; i<=7;i++) {
-            if (i != p.getCoinSuperieurGauche().x) {
-                case_possible.add(new Point(i * taille, p.getCoinSuperieurGauche().y));
+        pion_trouve = 0; //0 si pas de pion sur horizontale droite, 1 sinon
+        x = 1;
+
+        //deplacement à droite
+        while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().x + x * taille <= 7 * taille)) {
+            pion_case = 0;
+            for (Piece piece : listePion) {
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x + x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
+                    }
+                }
             }
-            if (i != p.getCoinSuperieurGauche().y) {
-                case_possible.add(new Point(p.getCoinSuperieurGauche().x, i * taille));
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + x * taille, p.getCoinSuperieurGauche().y));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
+        }
+
+        //deplacement à gauche
+        pion_trouve = 0; //0 si pas de pion sur horizontale gauche, 1 sinon
+        x = 1;
+        if (p.getCoinSuperieurGauche().x != 0){
+            while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().x - x * taille >= 0)) {
+                pion_case = 0;
+                for (Piece piece : listePion) {
+                    if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x - x * taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y)) {
+                        if (piece.getCouleur() != joueur) {
+                            pion_case = 2; // couleur adverse, peut manger
+                        } else {
+                            pion_case = 1;
+                        }
+                    }
+                }
+                if (pion_case == 0) {
+                    case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y));
+                } else if (pion_case == 2) {
+                    case_possible.add(new Point(p.getCoinSuperieurGauche().x - x * taille, p.getCoinSuperieurGauche().y));
+                    pion_trouve = 1;
+                } else pion_trouve = 1;
+                x = x + 1;
             }
+        }
+
+        //deplacement vers le haut
+        pion_trouve = 0; //0 si pas de pion vers le haut, 1 sinon
+        x = 1;
+        while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().y - x * taille >=0)) {
+            pion_case = 0;
+            for (Piece piece : listePion) {
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y-x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
+                    }
+                }
+            }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y -x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y -x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
+        }
+
+        //deplacement vers le bas
+        pion_trouve = 0; //0 si pas de pion vers le haut, 1 sinon
+        x = 1;
+        while ((pion_trouve == 0) && (p.getCoinSuperieurGauche().y + x * taille <=7*taille)) {
+            pion_case = 0;
+            for (Piece piece : listePion) {
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y+x*taille)) {
+                    if (piece.getCouleur() != joueur) {
+                        pion_case = 2; // couleur adverse, peut manger
+                    } else {
+                        pion_case = 1;
+                    }
+                }
+            }
+            if (pion_case == 0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y +x*taille));
+            } else if (pion_case == 2) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y +x*taille));
+                pion_trouve = 1;
+            } else pion_trouve = 1;
+            x = x + 1;
         }
         return case_possible;
     }
 
-    public ArrayList<Point> king_deplacement(Piece p, Point t){
+    public ArrayList<Point> king_deplacement(Piece p){
         int taille= ChessBoard.getTaille();
         ArrayList<Point> case_possible = new ArrayList<Point>();
+        int a1=0,a2=0,a3=0,a4=0,a5=0,a6=0,a7=0,a8=0;
 
-        case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y - taille));
-        case_possible.add(new Point(p.getCoinSuperieurGauche().x - taille, p.getCoinSuperieurGauche().y));
-        case_possible.add(new Point(p.getCoinSuperieurGauche().x - taille, p.getCoinSuperieurGauche().y - taille));
+        for (Piece piece:listePion) {
+            if (piece.getCouleur() == joueur) { // signe != normalement mais jsp pourquoi ça met vrai alors qu'on a white et black
+                if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y - taille)) {
+                    a1 = 1;
+                }else if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x-taille ) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y )) {
+                    a2 = 1;
+                } else if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x -taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y - taille)) {
+                    a3 = 1;
+                } else if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x ) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y + taille)) {
+                    a4 = 1;
+                } else if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x - taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y + taille)) {
+                    a5 = 1;
+                } else if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x +taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y)) {
+                    a6 = 1;
+                } else if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x + taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y - taille)) {
+                    a7 = 1;
+                } else if ((piece.getCoinSuperieurGauche().x == p.getCoinSuperieurGauche().x +  taille) && (piece.getCoinSuperieurGauche().y == p.getCoinSuperieurGauche().y + taille)) {
+                    a8 = 1;
+                }
+            }
+        }
+
+        if (a1==0){
+            case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y - taille));
+        }
+        if (a2==0){
+            case_possible.add(new Point(p.getCoinSuperieurGauche().x - taille, p.getCoinSuperieurGauche().y));
+        }
+        if (a3==0){
+            case_possible.add(new Point(p.getCoinSuperieurGauche().x - taille, p.getCoinSuperieurGauche().y - taille));
+        }
         if (p.getCoinSuperieurGauche().x>6*taille) {
             if (p.getCoinSuperieurGauche().y<=6*taille){
-                case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y + taille));
-                case_possible.add(new Point(p.getCoinSuperieurGauche().x - taille, p.getCoinSuperieurGauche().y + taille));
+                if (a4==0) {
+                    case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y + taille));
+                }
+                if (a5==0) {
+                    case_possible.add(new Point(p.getCoinSuperieurGauche().x - taille, p.getCoinSuperieurGauche().y + taille));
+                }
             }
         }
         else {
-            case_possible.add(new Point(p.getCoinSuperieurGauche().x + taille, p.getCoinSuperieurGauche().y));
-            case_possible.add(new Point(p.getCoinSuperieurGauche().x + taille, p.getCoinSuperieurGauche().y - taille));
+            if (a6==0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + taille, p.getCoinSuperieurGauche().y));
+            }
+            if (a7==0) {
+                case_possible.add(new Point(p.getCoinSuperieurGauche().x + taille, p.getCoinSuperieurGauche().y - taille));
+            }
             if (p.getCoinSuperieurGauche().y <= 6 * taille) {
-                case_possible.add(new Point(p.getCoinSuperieurGauche().x + taille, p.getCoinSuperieurGauche().y + taille));
-                case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y + taille));
-                case_possible.add(new Point(p.getCoinSuperieurGauche().x - taille, p.getCoinSuperieurGauche().y + taille));
+                if (a8==0) {
+                    case_possible.add(new Point(p.getCoinSuperieurGauche().x + taille, p.getCoinSuperieurGauche().y + taille));
+                }
+                if (a4==0) {
+                    case_possible.add(new Point(p.getCoinSuperieurGauche().x, p.getCoinSuperieurGauche().y + taille));
+                }
+                if (a5==0) {
+                    case_possible.add(new Point(p.getCoinSuperieurGauche().x - taille, p.getCoinSuperieurGauche().y + taille));
+                }
             }
         }
         return case_possible;
     }
 
-    public ArrayList<Point> knight_deplacement(Piece p, Point t) {
+    public ArrayList<Point> knight_deplacement(Piece p) {
         int taille = ChessBoard.getTaille();
         ArrayList<Point> case_possible = new ArrayList<Point>();
         int a1=0,a2=0,a3=0,a4=0,a5=0,a6=0,a7=0,a8=0;
@@ -500,15 +840,13 @@ public class FenetrePrincipale extends JFrame{
         return case_possible;
     }
 
-    // peut manger en avant
-    //ne peut pas avancer de 2 cases au début
-    //cas de si un pion devant lui
-    private ArrayList<Point>  pawn_deplacement(Piece pion, Point point){
+    private ArrayList<Point>  pawn_deplacement(Piece pion){
         int taille= ChessBoard.getTaille();
         ArrayList<Point> bouger = new ArrayList<Point>();
-        int pas_possible=0;
+        int pas_possible;
 
         if (pion.getCouleur()=="black"){
+            pas_possible=0;
             for (Piece piece:listePion){
                 //pouvoir manger en diagonale
                 if (piece.getCouleur()=="white") {
@@ -520,59 +858,63 @@ public class FenetrePrincipale extends JFrame{
                     }
                 }
 
-                    // cas vertical
-                    //pion juste devant
-                    if ((piece.getCoinSuperieurGauche().x==pion.getCoinSuperieurGauche().x)&& (piece.getCoinSuperieurGauche().y==pion.getCoinSuperieurGauche().y+1*taille)) {
-                        pas_possible=1;
-                    }
-
-                    // pion à une case
-                    else if ((piece.getCoinSuperieurGauche().x!=pion.getCoinSuperieurGauche().x)&& (piece.getCoinSuperieurGauche().y!=pion.getCoinSuperieurGauche().y+2*taille)) {
-                        pas_possible=2;
-                    }
+                // cas vertical
+                //pion juste devant
+                if ((piece.getCoinSuperieurGauche().x==pion.getCoinSuperieurGauche().x)&& (piece.getCoinSuperieurGauche().y==pion.getCoinSuperieurGauche().y+1*taille)) {
+                    pas_possible=1;
                 }
-                if (pas_possible==2){
-                    bouger.add(new Point(pion.getCoinSuperieurGauche().x, pion.getCoinSuperieurGauche().y + 1 * taille));
-                    if (pion.getCoinSuperieurGauche().y == taille) {
-                        if (pas_possible==0){
-                            bouger.add(new Point(pion.getCoinSuperieurGauche().x, pion.getCoinSuperieurGauche().y + 2 * taille));
-                        }
+
+                // pion à une case
+                else if ((piece.getCoinSuperieurGauche().x==pion.getCoinSuperieurGauche().x)&& (piece.getCoinSuperieurGauche().y==pion.getCoinSuperieurGauche().y+2*taille)) {
+                    pas_possible=2;
+                }
+            }
+            if ((pas_possible==2)||(pas_possible==0)){
+                bouger.add(new Point(pion.getCoinSuperieurGauche().x, pion.getCoinSuperieurGauche().y + 1 * taille));
+                if (pion.getCoinSuperieurGauche().y == taille) {
+                    if (pas_possible==0){
+                        bouger.add(new Point(pion.getCoinSuperieurGauche().x, pion.getCoinSuperieurGauche().y + 2 * taille));
                     }
                 }
             }
-            else {
-                for (Piece piece:listePion){
-                    if (piece.getCouleur()=="black") {
-                        if ((piece.getCoinSuperieurGauche().x ==pion.getCoinSuperieurGauche().x+1* taille) && (piece.getCoinSuperieurGauche().y==pion.getCoinSuperieurGauche().y-1*taille)){
-                            bouger.add(new Point(piece.getCoinSuperieurGauche().x, piece.getCoinSuperieurGauche().y));
-                        }
-                        else if ((piece.getCoinSuperieurGauche().x==pion.getCoinSuperieurGauche().x-1*taille) && (piece.getCoinSuperieurGauche().y==pion.getCoinSuperieurGauche().y-1*taille)){
-                            bouger.add(new Point(piece.getCoinSuperieurGauche().x, piece.getCoinSuperieurGauche().y));
-                        }
-                    }
-
-                    // cas vertical
-                    //pion juste devant
-                    if ((piece.getCoinSuperieurGauche().x==pion.getCoinSuperieurGauche().x)&& (piece.getCoinSuperieurGauche().y==pion.getCoinSuperieurGauche().y-1*taille)) {
-                        pas_possible=1;
-                    }
-
-                    // pion à une case
-                    else if ((piece.getCoinSuperieurGauche().x!=pion.getCoinSuperieurGauche().x)&& (piece.getCoinSuperieurGauche().y!=pion.getCoinSuperieurGauche().y-2*taille)) {
-                        pas_possible=2;
-                    }
-                }
-                if (pas_possible==2){
-                    bouger.add(new Point(pion.getCoinSuperieurGauche().x, pion.getCoinSuperieurGauche().y - 1 * taille));
-                    if (pion.getCoinSuperieurGauche().y == taille) {
-                        if (pas_possible==0){
-                            bouger.add(new Point(pion.getCoinSuperieurGauche().x, pion.getCoinSuperieurGauche().y - 2 * taille));
-                        }
-                    }
-                }
-            }
-            return bouger;
         }
+
+
+        //pion blanc
+        else {
+            pas_possible=0;
+            for (Piece piece:listePion){
+                if (piece.getCouleur()=="black") {
+                    if ((piece.getCoinSuperieurGauche().x ==pion.getCoinSuperieurGauche().x+1* taille) && (piece.getCoinSuperieurGauche().y==pion.getCoinSuperieurGauche().y-1*taille)){
+                        bouger.add(new Point(piece.getCoinSuperieurGauche().x, piece.getCoinSuperieurGauche().y));
+                    }
+                    else if ((piece.getCoinSuperieurGauche().x==pion.getCoinSuperieurGauche().x-1*taille) && (piece.getCoinSuperieurGauche().y==pion.getCoinSuperieurGauche().y-1*taille)){
+                        bouger.add(new Point(piece.getCoinSuperieurGauche().x, piece.getCoinSuperieurGauche().y));
+                    }
+                }
+
+                // cas vertical
+                //pion juste devant
+                if ((piece.getCoinSuperieurGauche().x==pion.getCoinSuperieurGauche().x)&& (piece.getCoinSuperieurGauche().y==pion.getCoinSuperieurGauche().y-1*taille)) {
+                    pas_possible=1;
+                }
+
+                // pion à une case
+                else if ((piece.getCoinSuperieurGauche().x==pion.getCoinSuperieurGauche().x)&& (piece.getCoinSuperieurGauche().y==pion.getCoinSuperieurGauche().y-2*taille)) {
+                    pas_possible=2;
+                }
+            }
+            if ((pas_possible==2)||(pas_possible==0)){
+                bouger.add(new Point(pion.getCoinSuperieurGauche().x, pion.getCoinSuperieurGauche().y - 1 * taille));
+                if (pion.getCoinSuperieurGauche().y == 6*taille) {
+                    if (pas_possible==0){
+                        bouger.add(new Point(pion.getCoinSuperieurGauche().x, pion.getCoinSuperieurGauche().y - 2 * taille));
+                    }
+                }
+            }
+        }
+        return bouger;
+    }
 
 
     private void enregistrer(ActionEvent e) {
@@ -585,8 +927,8 @@ public class FenetrePrincipale extends JFrame{
 
             String sql = "INSERT INTO scores (pseudo, score) VALUES (?, ?)";
             try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
-                preparedStatement.setString(1, "joueur 1");
-                preparedStatement.setInt(2, 5);
+                preparedStatement.setString(1, "Charlotte");
+                preparedStatement.setInt(2, Score);
                 //myContentPane.getScore()
                 preparedStatement.executeUpdate();
             }
@@ -599,7 +941,6 @@ public class FenetrePrincipale extends JFrame{
                     System.out.println("Pseudo: " + pseudo + ", Score: " + score);
                 }
             }
-
             connection.close();
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -608,21 +949,8 @@ public class FenetrePrincipale extends JFrame{
     // ajouter le jar : Echec (click droit), Open Module Settings, Libraries, +
 
     private int calcul_score(int s){
-        s=s+20;
+        s=s+10;
         return s;
     }
-// dépot code première date puis code+rapport
-    // rapport : diagramme de classe uml indisponible
-    // focus point important
-    //dire quelle version du jeu j'ai fait
 
 }
-
-
-
-
-//rapport : une partie sur git, une partie sur la base de données, sur jeu d'echec quel type de jeu j'ai programmé, qu'est-ce que j'ai fait,
-// pas de code !!! juste zoomé sur les points importants (phrase en français, petit schéma)
-// qq captures d'écran
-//montrer ce qui marche  et ce qui marche pas
-// 1 dépot : le code dimanche 4 février
